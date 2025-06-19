@@ -1,0 +1,59 @@
+# .github/workflows/pages.yml
+name: Deploy PHP‐rendered Static to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring
+
+      # ──────────────── CI 전용: DB 연결 파일을 빈 스텁으로 덮기
+      - name: Stub out DB connection
+        run: |
+          cat > db/dbconn.php << 'EOF'
+          <?php
+          // CI 환경에서는 DB 연결 안 함
+          EOF
+
+      - name: Prepare public folder
+        run: |
+          rm -rf public
+          mkdir public
+          cp -R css js images 404.html public/
+
+      - name: Render PHP to HTML
+        run: php index.php > public/index.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
